@@ -64,3 +64,39 @@ to `package.json`, not edits to upstream values.
 So the flag lives here and in `.nvmrc`, and the constraint is recorded as fork decision
 **A6** in `DECISIONS.md`. If a future task adds a fork-owned test script, prefer a **new**
 script name (e.g. `test:fork`) over modifying `test:run`.
+
+## Measuring `lint:security` (AC-05)
+
+**Do not read the bare error count as a pass/fail.** Two traps make it misleading:
+
+1. **Upstream ships 43 security errors.** AC-05's original "0 errors" was never achievable.
+   The criterion is now _parity_: the fork must introduce none. Recorded as **A19**.
+2. **The count depends on build history.** `eslint.config.mjs` ignores `dist/**` but not
+   `**/.vitepress/dist/**`, so a tree that has run a docs build reports **48** and a clean
+   checkout reports **43** — same source, two answers. Exclude `.vitepress/dist/` explicitly.
+
+The measurement is a control run, not a single command:
+
+```bash
+# 1. Fork, excluding gitignored build output
+npx eslint . --no-inline-config \
+  --rule 'no-unsanitized/method:error' --rule 'no-unsanitized/property:error' \
+  --rule 'security/detect-eval-with-expression:error' -f json > /tmp/sec.json
+
+# 2. Control: the identical command at a pristine UPSTREAM_BASE
+WT=$(mktemp -d)/upstream
+git worktree add -q --detach "$WT" "$(cat UPSTREAM_BASE)"
+(cd "$WT" && npm ci --silent && npx eslint . --no-inline-config \
+  --rule 'no-unsanitized/method:error' --rule 'no-unsanitized/property:error' \
+  --rule 'security/detect-eval-with-expression:error' -f json) > /tmp/sec-base.json
+git worktree remove --force "$WT"
+```
+
+AC-05 passes when the two counts **and their per-rule breakdowns** match after excluding
+`.vitepress/dist/`. Last measured 2026-09-10 at `4119454`:
+
+```
+fork (excl .vitepress/dist): 43 {"no-unsanitized/property":40,"no-unsanitized/method":3}
+UPSTREAM_BASE control      : 43 {"no-unsanitized/property":40,"no-unsanitized/method":3}
+PARITY: PASS — fork introduced 0
+```
