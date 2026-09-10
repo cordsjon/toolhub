@@ -120,3 +120,33 @@ Q180) — this file is for decisions made _inside_ the fork.
 **Justification:** `Dockerfile:98` copies `dist` to `/usr/share/nginx/html${BASE_URL%/}`. At `BASE_URL=/` the app's `index.html` overwrites the base image's welcome page; at `/tools/` it lands in a subdirectory and the stock `index.html` and `50x.html` survive at the root. This is the **third** upstream construct in this task that is correct at `/` and wrong at a subpath (after the `/tools/` 301 collision and the hardcoded `SITE_URL`). **Not a public exposure:** the plan binds the container to `127.0.0.1:9103` and `172.17.0.1:9103` only, and NPM host `17.conf` proxies just `location /tools/`, so `/` is reachable from VPS loopback and the docker bridge, never the internet. It is still wrong — it contradicts a stated acceptance criterion and would give a health monitor a misleading `200`. Deferred rather than fixed because `Dockerfile` is a **fourth** upstream file outside the allowance, and the operator widened it in A9 only for the blog fix; expanding again unprompted would be exactly the scope creep AC-01 exists to prevent. The plan's `403` premise was measured against a bare `nginx:alpine` fixture with no default webroot, which is why it was not caught at planning time. **Recommended fix (one line, T6 or the Dockerfile):** `RUN rm -f /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html` after the dist copy.
 **Outcome:** escalated
 **Ref:** measured against toolhub:local at commit c3e0ed1
+
+## A12 — empty extension categories break an upstream invariant — deviation
+
+**Question:** The plan merges all three extension categories with empty tool lists, but upstream's `tools.test.ts:20` asserts every category has a non-empty `tools` array — three tests fail. Weaken the test, defer the merge, or filter?
+**Options considered:** spread unconditionally and edit `tools.test.ts` / spread only populated categories / delay the whole merge until the tools epic / give each category a placeholder tool
+**Chosen:** Spread only populated categories: `...extCategories.filter((c) => c.tools.length > 0)`.
+**Decided-by:** agent
+**Justification:** Checked whether the upstream invariant is right before trying to satisfy it, and it is: both renderers already drop zero-tool categories (`main.ts:313` for the tool grid, `main.ts:974` for the shortcuts panel), so an empty category renders nowhere and is pure dead weight in `categories`. `tools.test.ts` is upstream-owned and outside the integration allowance, so weakening it would breach AC-01 to accommodate a construct that has no effect — the worst of both. Filtering keeps the registry honest in both states and needs no upstream edit. Deferring the merge entirely was rejected because it would leave the wiring untested until the tools epic. Assumed rather than escalated: reversible, determinable from the code, and no shipped artifact changes while the lists are empty. Consequence for the plan's own test: its `names.slice(-3)` assertion presumed an unconditional spread, so it was rewritten to derive the expectation from the populated set — it now stays correct as the tools epic fills categories one at a time, instead of needing an edit per category.
+**Outcome:** applied
+**Ref:** commit 3d61909
+
+## A13 — the i18nKey fallback belongs at five sites, not two — deviation
+
+**Question:** The plan specifies the `?? i18nKey` fallback at `main.ts` lines 328 and 403. Grep finds five lookup sites. Patch two as written, or all five?
+**Options considered:** exactly the two named / all five / two now and the rest in the tools epic
+**Chosen:** All five — `categoryTranslationKeys` at 329 and 984, `toolTranslationKeys` at 406, 1016 and 1109.
+**Decided-by:** agent
+**Justification:** The three unnamed sites render the shortcuts / command palette, and they read the same `categories` export the extension categories are merged into (`main.ts:965`), so extension entries reach them by the same path. Patching only the grid would leave the palette showing raw English names the moment the tools epic populates a category — a defect invisible today (the palette filters zero-tool categories) and therefore likely to ship unnoticed. The change is the identical one-line pattern with identical fallback semantics at every site, so consistency costs nothing and divergence would be arbitrary. Line numbers in the plan had already drifted (`tools.ts` `baseCategories` closes at 838, not the stated 843), so the count of sites was verified by grep rather than trusted from the plan.
+**Outcome:** applied
+**Ref:** commit 3d61909
+
+## A14 — the recorded lint baseline no longer reproduces — gate-resolution
+
+**Question:** The handover records a lint baseline of "0 errors, 516 warnings"; the same command now reports 1 error and 2620 warnings. Did this session introduce it?
+**Options considered:** treat as a regression from Task 3 / verify by control run / fix the error
+**Chosen:** Pre-existing, not introduced here. Nothing changed.
+**Decided-by:** agent
+**Justification:** Established by control, not inference: stashing all five Task 3 files and re-running `npm run lint` reproduces the identical `1 error, 2620 warnings`. The error is `preserve-caught-error` on `public/sw.js:9` — a generated service worker, unmodified since `UPSTREAM_BASE` (`git diff --numstat` against the base is empty for it). The rule appears to have arrived with a lint dependency update after the baseline was measured. Not fixed here: `public/sw.js` is upstream-owned, outside the allowance, and unrelated to this task. **Process note:** warning and error counts drift with dependency updates in a way commit SHAs do not, so they age badly as handover "measurements — do not re-derive"; they belong in the `## Premises` block where a resume re-measures them, and the next handover records it that way.
+**Outcome:** applied
+**Ref:** control run at commit 3d61909
