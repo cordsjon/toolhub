@@ -95,6 +95,14 @@ USER root
 RUN apk upgrade --no-cache
 USER nginx
 
+# Drop the base image's stock welcome page BEFORE copying dist. At BASE_URL=/ the
+# app's own index.html overwrites it, but at a sub-path (e.g. /tools/) dist lands
+# in a subdirectory and nginx would keep serving "Welcome to nginx!" at /.
+# Must precede the COPY: afterwards, at BASE_URL=/, it would delete the real index.
+USER root
+RUN rm -f /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html
+USER nginx
+
 COPY --chown=nginx:nginx --from=builder /app/dist /usr/share/nginx/html${BASE_URL%/}
 COPY --chown=nginx:nginx nginx.conf /etc/nginx/nginx.conf
 COPY --chown=nginx:nginx --from=builder /app/security-headers.conf /etc/nginx/security-headers.conf
