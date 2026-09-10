@@ -20,6 +20,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:live": "TOOLHUB_LIVE=1 playwright test",
     "test:watch": "vitest watch",
     "build:docker": "vite build",
     "format": "prettier --write .",
@@ -43,6 +45,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/dom": "^10.4.1",
     "@types/blob-stream": "^0.1.33",
     "@types/html2canvas": "^1.0.0",
