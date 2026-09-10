@@ -8,11 +8,26 @@ const __dirname = path.dirname(__filename);
 
 const POSTS_DIR = path.resolve(__dirname, '../blog/posts');
 const BLOG_DIR = path.resolve(__dirname, '../blog');
-const SITE_URL = 'https://www.bentopdf.com';
+const SITE_URL = (process.env.SITE_URL || 'https://www.bentopdf.com').replace(
+  /\/+$/,
+  ''
+);
+// Base path for the ABSOLUTE URLs in meta tags and JSON-LD (canonical, og:url,
+// author/image URLs). Vite registers blog/*.html as rollup inputs, so it already
+// rewrites root-relative asset refs (`/src/...`, `/images/...`) with its `base`
+// option — but it does not touch fully-qualified URLs, so those are composed
+// here. Mirrors `seo-audit.mjs`'s expectedCanonicalForFile, which validates them.
+const BASE_PATH = (process.env.BASE_URL || '/').replace(/\/$/, '');
+
+// Hand-authored pages under blog/ that this script preserves but does not
+// render. Their absolute URLs are baked in, so `rebaseStaticPages()` rewrites
+// them when SITE_URL/BASE_URL are overridden (a no-op on upstream defaults).
+const UPSTREAM_SITE_URL = 'https://www.bentopdf.com';
+const STATIC_PAGES = ['author-alam.html'];
 const AUTHOR = {
   name: 'Alam',
-  url: `${SITE_URL}/blog/author-alam`,
-  image: `${SITE_URL}/images/author-alam.jpg`,
+  url: `${SITE_URL}${BASE_PATH}/blog/author-alam`,
+  image: `${SITE_URL}${BASE_PATH}/images/author-alam.jpg`,
   profiles: [
     'https://github.com/alam00000',
     'https://www.linkedin.com/in/abdullah-alam01/',
@@ -172,7 +187,7 @@ function renderCta(cta) {
 }
 
 function renderPost({ slug, meta, body }) {
-  const url = `${SITE_URL}/blog/${slug}`;
+  const url = `${SITE_URL}${BASE_PATH}/blog/${slug}`;
   const updated = meta.updated || meta.date;
   const bodyHtml = styleBody(marked.parse(body));
   const faqEntries =
@@ -191,7 +206,7 @@ function renderPost({ slug, meta, body }) {
     <meta property="og:url" content="${url}" />
     <meta property="og:title" content="${escapeHtml(meta.ogTitle || meta.h1)}" />
     <meta property="og:description" content="${escapeHtml(meta.description)}" />
-    <meta property="og:image" content="${SITE_URL}/images/og-tools.png" />
+    <meta property="og:image" content="${SITE_URL}${BASE_PATH}/images/og-tools.png" />
     <meta property="og:site_name" content="BentoPDF" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -254,7 +269,7 @@ ${renderFaqs(meta.faqs)}
           url,
           datePublished: meta.date,
           dateModified: updated,
-          image: `${SITE_URL}/images/og-tools.png`,
+          image: `${SITE_URL}${BASE_PATH}/images/og-tools.png`,
           author: {
             '@type': 'Person',
             name: AUTHOR.name,
@@ -281,7 +296,7 @@ ${renderFaqs(meta.faqs)}
               '@type': 'ListItem',
               position: 1,
               name: 'Blog',
-              item: `${SITE_URL}/blog/`,
+              item: `${SITE_URL}${BASE_PATH}/blog/`,
             },
             {
               '@type': 'ListItem',
@@ -329,15 +344,15 @@ function renderIndex(posts) {
       content="Guides and honest comparisons from the maintainer of BentoPDF: how PDF tools handle your files, and how to get things done without uploading them."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
-    <link rel="canonical" href="${SITE_URL}/blog/" />
+    <link rel="canonical" href="${SITE_URL}${BASE_PATH}/blog/" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="${SITE_URL}/blog/" />
+    <meta property="og:url" content="${SITE_URL}${BASE_PATH}/blog/" />
     <meta property="og:title" content="The BentoPDF Blog" />
     <meta
       property="og:description"
       content="Guides and honest comparisons from the maintainer of BentoPDF."
     />
-    <meta property="og:image" content="${SITE_URL}/images/og-tools.png" />
+    <meta property="og:image" content="${SITE_URL}${BASE_PATH}/images/og-tools.png" />
     <meta property="og:site_name" content="BentoPDF" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -374,7 +389,7 @@ ${cards}
           '@context': 'https://schema.org',
           '@type': 'Blog',
           name: 'The BentoPDF Blog',
-          url: `${SITE_URL}/blog/`,
+          url: `${SITE_URL}${BASE_PATH}/blog/`,
           description:
             'Guides and honest comparisons from the maintainer of BentoPDF.',
           publisher: {
@@ -404,7 +419,7 @@ function generate() {
   const posts = files.map(parsePost);
   posts.sort((a, b) => (a.meta.date < b.meta.date ? 1 : -1));
 
-  const keep = new Set(['index.html', 'author-alam.html']);
+  const keep = new Set(['index.html', ...STATIC_PAGES]);
   for (const post of posts) {
     fs.writeFileSync(
       path.join(BLOG_DIR, `${post.slug}.html`),
@@ -413,6 +428,8 @@ function generate() {
     keep.add(`${post.slug}.html`);
   }
   fs.writeFileSync(path.join(BLOG_DIR, 'index.html'), renderIndex(posts));
+
+  rebaseStaticPages();
 
   for (const entry of fs.readdirSync(BLOG_DIR)) {
     if (entry.endsWith('.html') && !keep.has(entry)) {
@@ -424,6 +441,32 @@ function generate() {
   console.log(
     `generate-blog: ${posts.length} posts + index generated from blog/posts/`
   );
+}
+
+// Rewrite the absolute upstream URLs baked into hand-authored pages so they
+// point at this deployment. Only same-site URLs are touched: `/blog/...` and
+// `/images/...` under the upstream origin. External links (the GitHub repo,
+// social profiles) keep pointing upstream, which is correct — they are not
+// this site's content. No-op when SITE_URL is unset and BASE_URL is `/`.
+function rebaseStaticPages() {
+  if (SITE_URL === UPSTREAM_SITE_URL && BASE_PATH === '') return;
+
+  for (const name of STATIC_PAGES) {
+    const file = path.join(BLOG_DIR, name);
+    if (!fs.existsSync(file)) continue;
+
+    const before = fs.readFileSync(file, 'utf-8');
+    const upstream = UPSTREAM_SITE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const after = before.replace(
+      new RegExp(`${upstream}(/(?:blog|images)/)`, 'g'),
+      `${SITE_URL}${BASE_PATH}$1`
+    );
+
+    if (after !== before) {
+      fs.writeFileSync(file, after);
+      console.log(`generate-blog: rebased URLs in ${name}`);
+    }
+  }
 }
 
 generate();
