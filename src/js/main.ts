@@ -325,7 +325,9 @@ const init = async () => {
       header.type = 'button';
 
       const title = document.createElement('span');
-      const categoryKey = categoryTranslationKeys[category.name];
+      const categoryKey =
+        categoryTranslationKeys[category.name] ??
+        (category as { i18nKey?: string }).i18nKey;
       title.textContent = categoryKey ? t(categoryKey) : category.name;
 
       const chevron = document.createElement('i');
@@ -400,7 +402,9 @@ const init = async () => {
 
         const toolName = document.createElement('h3');
         toolName.className = 'font-semibold text-white';
-        const toolKey = toolTranslationKeys[tool.name];
+        const toolKey =
+          toolTranslationKeys[tool.name] ??
+          (tool as { i18nKey?: string }).i18nKey;
         toolName.textContent = toolKey ? t(`${toolKey}.name`) : tool.name;
 
         toolCard.append(icon, toolName);
@@ -977,7 +981,9 @@ const init = async () => {
       const header = document.createElement('h3');
       header.className =
         'text-gray-400 text-xs font-bold uppercase tracking-wider mb-3 pl-1';
-      const categoryKey = categoryTranslationKeys[category.name];
+      const categoryKey =
+        categoryTranslationKeys[category.name] ??
+        (category as { i18nKey?: string }).i18nKey;
       header.textContent = categoryKey ? t(categoryKey) : category.name;
       section.appendChild(header);
 
@@ -1009,7 +1015,9 @@ const init = async () => {
 
         const name = document.createElement('span');
         name.className = 'text-gray-200 font-medium';
-        const toolKey = toolTranslationKeys[tool.name];
+        const toolKey =
+          toolTranslationKeys[tool.name] ??
+          (tool as { i18nKey?: string }).i18nKey;
         name.textContent = toolKey ? t(`${toolKey}.name`) : tool.name;
 
         left.append(icon, name);
@@ -1102,7 +1110,8 @@ const init = async () => {
               const displayCombo = formatShortcutDisplay(combo, isMac);
 
               const existingToolKey = existingTool
-                ? toolTranslationKeys[existingTool.name]
+                ? (toolTranslationKeys[existingTool.name] ??
+                  (existingTool as { i18nKey?: string }).i18nKey)
                 : null;
               const translatedToolName = existingToolKey
                 ? t(`${existingToolKey}.name`)

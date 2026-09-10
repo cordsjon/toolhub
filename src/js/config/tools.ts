@@ -1,4 +1,6 @@
 // This file centralizes the definition of all available tools, organized by category.
+import { extCategories } from './tools-ext.js';
+
 const baseCategories = [
   {
     name: 'Popular Tools',
@@ -835,6 +837,10 @@ const baseCategories = [
       },
     ],
   },
+  // Only populated extension categories join the registry: upstream's
+  // tools.test.ts requires every category to be non-empty, and both renderers
+  // (main.ts:313, main.ts:974) filter zero-tool categories out anyway.
+  ...extCategories.filter((c) => c.tools.length > 0),
 ];
 
 const getToolIdFromHref = (href: string): string => {

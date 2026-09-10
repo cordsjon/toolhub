@@ -635,6 +635,9 @@ export default defineConfig(() => {
       },
     },
     build: {
+      // The deploy probe reads dist/.vite/manifest.json from the running image
+      // to derive a release-specific hashed asset URL (plan T16).
+      manifest: true,
       rollupOptions: {
         input: {
           main:
@@ -877,6 +880,16 @@ export default defineConfig(() => {
           'bates-numbering': resolve(
             __dirname,
             'src/pages/bates-numbering.html'
+          ),
+          // toolhub extension pages (src/pages/x-*.html; the _x-template is not built)
+          ...Object.fromEntries(
+            fs
+              .readdirSync(resolve(__dirname, 'src/pages'))
+              .filter((f) => /^x-[a-z0-9-]+\.html$/.test(f))
+              .map((f) => [
+                f.replace(/\.html$/, ''),
+                resolve(__dirname, 'src/pages', f),
+              ])
           ),
         },
         output: {
