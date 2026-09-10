@@ -150,3 +150,13 @@ Q180) — this file is for decisions made _inside_ the fork.
 **Justification:** Established by control, not inference: stashing all five Task 3 files and re-running `npm run lint` reproduces the identical `1 error, 2620 warnings`. The error is `preserve-caught-error` on `public/sw.js:9` — a generated service worker, unmodified since `UPSTREAM_BASE` (`git diff --numstat` against the base is empty for it). The rule appears to have arrived with a lint dependency update after the baseline was measured. Not fixed here: `public/sw.js` is upstream-owned, outside the allowance, and unrelated to this task. **Process note:** warning and error counts drift with dependency updates in a way commit SHAs do not, so they age badly as handover "measurements — do not re-derive"; they belong in the `## Premises` block where a resume re-measures them, and the next handover records it that way.
 **Outcome:** applied
 **Ref:** control run at commit 3d61909
+
+## A15 — resolving A11: remove the stock webroot in the Dockerfile — gate-resolution
+
+**Question:** A11 escalated the container serving nginx's default page at `/`. Fix it, and does the allowance widen to `Dockerfile`?
+**Options considered:** `rm` the stock files in the Dockerfile / an nginx `location = /` returning 404 / accept and document
+**Chosen:** `RUN rm -f /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html`, placed **before** the dist COPY. The operator accepted the route.
+**Decided-by:** human
+**Justification:** Removes the artefact rather than masking it with a routing rule, and needs no `nginx.conf` change (keeping that file's diff at the 10 lines Task 2 established). **The placement corrects the recommendation given in A11:** that entry proposed the `rm` _after_ the dist copy, which is right at `BASE_URL=/tools/` but at `BASE_URL=/` would delete the application's own `index.html`, since dist lands directly in the webroot there. Running it before the COPY is correct at every base path — at root the app simply lands on the cleared directory. Bracketed `USER root`/`USER nginx` because the stage runs as `nginx` and cannot unlink from the root-owned webroot; that bracket mirrors the adjacent `apk upgrade` rather than introducing a new idiom. Verified by building and probing **both** base paths, not just the failing one: at `/tools/` the webroot holds only `tools` and the AC-04 probe returns `200 200 200 403`; at `/` the real `index.html` survives, `/` returns 200 with the tool grid, and "Welcome to nginx" appears zero times. `Dockerfile` diff vs base is 8 lines (≤25).
+**Outcome:** applied
+**Ref:** commit bcd993b; supersedes the escalation in A11
