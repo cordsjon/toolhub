@@ -1,16 +1,28 @@
+# toolhub — fork-owned compose (replaces upstream's BentoPDF compose; see DECISIONS A18).
+# The image is pre-built and promoted by deploy.sh (T16); compose never builds.
+# Build args (BASE_URL, SIMPLE_MODE, VITE_BRAND_NAME, VITE_DEFAULT_LANGUAGE, SITE_URL,
+# VITE_FOOTER_TEXT) live in deploy.sh's `docker build`, because the candidate tag must
+# differ from the compose image tag.
 services:
-  bentopdf:
-    # GitHub Container Registry (Recommended)
-    # Self-Hosted build - ghcr.io/alam00000/bentopdf-simple:latest
-    # Commercial build  - ghcr.io/alam00000/bentopdf:latest
-    # Docker Hub (Alternative)
-    # Self-Hosted build - bentopdfteam/bentopdf-simple:latest
-    # Commercial build  - bentopdfteam/bentopdf:latest
-    image: ghcr.io/alam00000/bentopdf-simple:latest
-    container_name: bentopdf
+  toolhub:
+    image: toolhub:current
+    pull_policy: never
+    container_name: toolhub
     restart: unless-stopped
     ports:
-      - '8080:8080'
-    # For IPv4-only environments
-    #environment:
-    #  - DISABLE_IPV6=true
+      - '127.0.0.1:9103:8080'
+      - '172.17.0.1:9103:8080' # P9 RESOLVED: uptime-kuma is bridge-networked — REQUIRED, not optional (Q178)
+    healthcheck:
+      # nginx-unprivileged:alpine-slim ships wget, not curl (measured).
+      test:
+        [
+          'CMD',
+          'wget',
+          '-q',
+          '-O',
+          '/dev/null',
+          'http://127.0.0.1:8080/tools/merge-pdf.html',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
