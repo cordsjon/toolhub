@@ -10,6 +10,21 @@
     "input": "Eingabe",
     "output": "Ausgabe"
   },
+  "ext": {
+    "categories": {
+      "image": "Bild",
+      "officeData": "Office & Daten",
+      "textDev": "Text & Entwickler"
+    },
+    "common": {
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "download": "Herunterladen",
+      "cancel": "Abbrechen",
+      "clear": "Leeren",
+      "processing": "Wird verarbeitet…"
+    }
+  },
   "convertToPdf": "In PDF konvertieren",
   "pdfMultiTool": {
     "name": "PDF Multi-Werkzeug",
