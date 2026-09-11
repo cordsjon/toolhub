@@ -8,6 +8,12 @@ export default defineConfig({
     base: '/docs/',
     cleanUrls: true,
 
+    // Fork-local design specs live in docs/specs/ but are not user documentation.
+    // They also break the build: Vue's SFC compiler scans for HTML tags before
+    // markdown-it protects inline code, so backticked placeholders such as
+    // `<slug>` raise "Element is missing end tag".
+    srcExclude: ['specs/**'],
+
     transformPageData(pageData) {
         const relPath = pageData.relativePath.replace(/\.md$/, '')
         const slug = relPath === 'index' ? '' : relPath.replace(/\/index$/, '/')
