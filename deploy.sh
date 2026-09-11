@@ -197,12 +197,32 @@ case "$cmd" in
     # BASE_URL=/broken/ also moves .vite/manifest.json to /usr/share/nginx/html/broken/,
     # so derive_asset fails first — the rehearsal proves DETECTION only, not probe-URL
     # coverage (spec: accepted, triage D5). Run once; it is a platform-epic exit condition.
+    #
+    # MUST assert WHICH failure fired, not merely a non-zero exit. Measured 2026-09-11:
+    # the first rehearsal "PASSED" because preflight refused a dirty tree (`prod` had just
+    # appended its OK line to deploy/log.md) — the broken image was never built, so the
+    # probe was never exercised. A rehearsal that accepts any failure mode proves nothing
+    # about the one it exists to test. `prod` no longer dirties the tree (see TOOLHUB_LOG),
+    # and the output is now required to show the probe stage failing.
     echo "Rehearsing a failed deploy (BASE_URL=/broken/) ..."
-    if ( export TOOLHUB_EXTRA_BUILD_ARGS="--build-arg BASE_URL=/broken/"; "$0" prod ); then
+    # The inner prod runs with preflight skipped ON PURPOSE: a successful deploy appends its
+    # OK line to the tracked deploy/log.md, so by the time anyone rehearses, the tree is
+    # legitimately dirty and the preflight would short-circuit the rehearsal before the build.
+    # Skipping it here is safe — the rehearsal deliberately ships a BROKEN build that must
+    # never be promoted, so the "don't ship uncommitted code" rationale does not apply; and
+    # the assertion below requires the probe to be what rejects it.
+    rehearsal_out=$( ( export TOOLHUB_EXTRA_BUILD_ARGS="--build-arg BASE_URL=/broken/" TOOLHUB_DEPLOY_SKIP_PREFLIGHT=1; "$0" prod ) 2>&1 ) && {
+      echo "$rehearsal_out" | tail -20
       echo "ERROR: rehearsal FAILED — a broken build was promoted (expected exit 1)."
       exit 1
+    }
+    if ! echo "$rehearsal_out" | grep -qE 'PROBE FAIL|candidate failed the probe'; then
+      echo "$rehearsal_out" | tail -20
+      echo "ERROR: rehearsal is a FALSE GREEN — prod exited non-zero, but not at the probe."
+      echo "       The broken build must be REJECTED BY THE PROBE for this to prove anything."
+      exit 1
     fi
-    echo "  broken candidate was rejected, as expected."
+    echo "  broken candidate was rejected BY THE PROBE, as expected."
 
     code=$(ssh "$VPS_HOST" "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$PORT/tools/merge-pdf.html")
     [ "$code" = "200" ] || { echo "ERROR: rehearsal — current is not serving after the rejected candidate (got $code)"; exit 1; }

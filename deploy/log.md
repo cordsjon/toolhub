@@ -220,3 +220,11 @@ where portmgr's uvicorn held `:9100`. Verified, including that the guard still r
 :9877 → (empty, free)      (free → allowed)
 :103  → (empty)            (colon anchor: cannot partial-match 9103)
 ```
+
+> bento-pdf@2.8.8 smoke:live
+> bash deploy/smoke-live.sh assets/alternate-merge-B5GEb5c6.js
+
+smoke ok: anonymous 302→/login?next=/tools/x.html, authenticated 200, asset assets/alternate-merge-B5GEb5c6.js 200
+2026-09-11T18:48:41Z prod 8c63481f58290b784ca74aa235bf69983a48023d asset=assets/alternate-merge-B5GEb5c6.js OK
+2026-09-11T18:49:17Z rollback OK
+rehearse-failure PASS 2026-09-11T18:49:18Z
