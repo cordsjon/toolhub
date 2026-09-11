@@ -158,3 +158,30 @@ live smoke                          → "smoke ok: anonymous 302→…, authenti
 strip_origin unit cases             → absolute·relative·http·root-only·empty correct;
                                       negative control (query leaked into next=) still compares UNEQUAL
 ```
+
+### P9 confirmed by measurement (was Phase 0's one open follow-up)
+
+Phase 0 established Kuma is bridge-networked and inferred the `172.17.0.1:9103` binding would be
+required; it left a "confirm after the first deploy" box unticked. Now measured, with the negative
+control that makes the claim testable rather than asserted:
+
+```
+docker exec uptime-kuma curl http://172.17.0.1:9103/tools/merge-pdf.html   → 200
+docker exec uptime-kuma curl http://127.0.0.1:9103/tools/merge-pdf.html    → 000   (negative control)
+```
+
+The `000` is the load-bearing half: it proves loopback is genuinely unreachable from the bridged
+Kuma container, so the second binding in `docker-compose.yml` is mandatory rather than harmless
+clutter. Removing it would silently blind the AC-05 private monitor. Kuma's private monitor URL is
+therefore `http://172.17.0.1:9103/tools/merge-pdf.html`.
+
+### Not yet done on US-TH-03
+
+- **AC-03 `rehearse-failure` is blocked on a second deploy.** This was a first install:
+  `docker images` shows `toolhub:candidate` and `toolhub:current` but **no `toolhub:rollback`**, so
+  the rehearsal's rollback leg would hit the deliberate `no toolhub:rollback image (first install)`
+  refusal. One more successful `./deploy.sh prod` creates the rollback image; the rehearsal is
+  meaningful only after that.
+- AC-04 (inventory + `about.md` registration) — untouched.
+- AC-05 (two Kuma monitors) — the private monitor's URL is now proven reachable, but neither
+  monitor has been created; that is an operator UI action.
