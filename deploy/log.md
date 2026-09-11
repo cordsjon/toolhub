@@ -286,3 +286,41 @@ what a rollback does. Redeploy afterwards to return prod to the newest commit.
 
 smoke ok: anonymous 302→/login?next=/tools/x.html, authenticated 200, asset assets/alternate-merge-B5GEb5c6.js 200
 2026-09-11T19:08:37Z prod 0f2d1505a5ba32f7cecdff21e82eafe2393e82eb asset=assets/alternate-merge-B5GEb5c6.js OK
+
+## 2026-09-11 — US-TH-03 AC-04: portfolio app registration (partial)
+
+Governance-side registration complete: `portfolio_apps/toolhub/about.md` updated with:
+
+- `repo: 15_SAAS/25_Toolhub`
+- `envs: ['prod']`
+- `port: 9103` (bridge + loopback)
+- `url: https://poster.getaccess.cloud/tools/` (public) and `http://172.17.0.1:9103/tools/merge-pdf.html` (private)
+- Integration via PosterEngine `:9120`
+
+Validated through `scripts/validate_about.py`. Committed to `00_Governance` as 2488142.
+
+**Pending operator action:** Register toolhub in VPS portmgr `:9000` allocations with port 9103.
+Once portmgr has the entry, the next infra-inventory run will add it to `00_Governance/infra-inventory/inventory.md`.
+
+## 2026-09-11 — US-TH-03 AC-05: Uptime Kuma monitoring (awaiting operator)
+
+P9 verified: Kuma container can reach `http://172.17.0.1:9103/tools/merge-pdf.html` (bridged address).
+Two monitors needed on the VPS:
+
+1. **Public gate monitor** (user-facing)
+   - URL: `https://poster.getaccess.cloud/tools/`
+   - Expected status: **302** (redirect to login for anonymous)
+   - Purpose: detect auth gate breakage
+
+2. **Private backend monitor** (infrastructure)
+   - URL: `http://172.17.0.1:9103/tools/merge-pdf.html`
+   - Expected status: **200** (backend serving, authenticated session)
+   - Purpose: detect container crash or Docker port binding loss
+   - Note: Uses bridge-network address; loopback `:9103` unreachable from Kuma container
+
+**Operator action:** Create both monitors in Uptime Kuma UI, record monitor IDs below.
+
+Monitor IDs (to be filled by operator):
+
+- Public gate: [TBD]
+- Private backend: [TBD]
