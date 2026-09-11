@@ -280,3 +280,9 @@ live after: auth /tools/ 200 · anon 302 · /meeting/ 401
 
 Note the rehearsal legitimately leaves `toolhub:current` pointing at the PREVIOUS image — that is
 what a rollback does. Redeploy afterwards to return prod to the newest commit.
+
+> bento-pdf@2.8.8 smoke:live
+> bash deploy/smoke-live.sh assets/alternate-merge-B5GEb5c6.js
+
+smoke ok: anonymous 302→/login?next=/tools/x.html, authenticated 200, asset assets/alternate-merge-B5GEb5c6.js 200
+2026-09-11T19:08:37Z prod 0f2d1505a5ba32f7cecdff21e82eafe2393e82eb asset=assets/alternate-merge-B5GEb5c6.js OK
