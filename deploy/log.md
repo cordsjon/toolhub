@@ -50,3 +50,45 @@ after:  17.conf md5 271c3bc4… (2992 B)   nginx -t: successful
 
 Not yet provable until the toolhub container listens on 127.0.0.1:9103 (T16): authenticated 200 on
 `/tools/`, COOP/COEP headers, `npm run smoke:live`, T14 e2e.
+
+## 2026-09-11 — T15: `deploy.sh` written (US-TH-03 AC-02, AC-03 code paths)
+
+Cloned from `~/projects/15_SAAS/20_PosterEngine/deploy.sh` (spec D23) and pruned. **No deploy has
+run yet** — this entry records the script landing, not a release.
+
+Arms kept: `prod|push`, `rollback`, `rehearse-failure`, `status`, `logs`.
+Arms dropped and why: `build` (the shipped image is built on the VPS, a local build would mislead),
+`push-env` (no `.env` on the VPS — the container holds no secrets), `test` (no test stack for a
+static site; the candidate→probe→promote cycle is the test), `restart` (identical to
+`docker compose up -d`, already inside `prod`/`rollback`).
+
+Deviations from PosterEngine's original, all deliberate:
+
+- preflight **refuses** a dirty or unpushed tree (PosterEngine only warns). The footer embeds
+  `Source: <fork>/tree/<sha>`, so shipping unpushed code would publish a link that 404s.
+- adds the upstream-boundary check (US-TH-01 AC-02) to preflight.
+- `preflight_ports` replaces PosterEngine's reap-the-orphan logic: it refuses when `:9103` is held
+  by anything other than `toolhub`/`toolhub-candidate` (P2) and requires PosterEngine on `:9120`
+  (P5, or every gated request 500s instead of serving).
+- retag happens **only after** the probe passes, so the last healthy image is never overwritten.
+
+Pre-deploy verification (local, no VPS mutation):
+
+```
+bash -n deploy.sh                                  → OK
+./deploy.sh bogus                                  → usage line, rc=1
+./deploy.sh prod   with an untracked scratch file  → refuses, rc=1, exits before any ssh
+                   (positive control: the untracked deploy.sh itself also listed)
+ssh root@72.61.159.117 'ss -tlnH | grep ":9103 "'  → empty, rc=1   (P2 re-verify: still free)
+ssh root@72.61.159.117 'ss -tlnH | grep ":9120 "'  → LISTEN 127.0.0.1:9120   (P5: PosterEngine up)
+hostname on the VPS                                → srv1062693
+```
+
+**Q199 — `VITE_BUILD_SHA` is not passed.** The spec's AC-01 lists it, but
+`grep -rn VITE_BUILD_SHA` over the repo (excluding `node_modules/`, `dist/`) returns zero
+occurrences and the Dockerfile declares no such `ARG`. Docker silently ignores an undeclared
+`--build-arg`, so passing it would be provenance theatre. The SHA reaches the image through
+`VITE_FOOTER_TEXT` (Dockerfile `ARG` line 59 → `ENV` line 62 → `vite.config.ts:565`).
+
+**Bootstrapping note:** `./deploy.sh prod` cannot run from the commit that introduces it — its own
+preflight refuses an unpushed tree. The first real deploy is necessarily a post-commit action.
