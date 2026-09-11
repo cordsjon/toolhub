@@ -349,3 +349,14 @@ Verified:
 - Gate correctly prevents access without valid session ✓
 
 Platform epic exit conditions now all met. Ready to close US-TH-03.
+
+## 2026-09-11 — US-TH-03 AC-04: Portmgr registration complete
+
+Toolhub registered in portmgr (port 9103) via CLI:
+
+- Released stale `solar` allocation
+- Allocated `toolhub: 9103` in portmgr database
+- Verified via `/allocations` API — toolhub now present
+- Infra-inventory updated: `- **toolhub** — \`localhost:9103\``
+
+AC-04 fully complete. AC-05 (Kuma monitors) ready for operator.
