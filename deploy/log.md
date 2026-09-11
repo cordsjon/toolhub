@@ -324,3 +324,28 @@ Monitor IDs (to be filled by operator):
 
 - Public gate: [TBD]
 - Private backend: [TBD]
+
+## 2026-09-11 — US-TH-03 AC-06: Playwright e2e live gate test (US-TH-02 AC-06 validation)
+
+`npm run test:e2e:live` run on live site against authenticated session (TOOLHUB_E2E_COOKIE):
+
+```
+Running 3 tests using 1 worker
+
+  ✓  1 e2e/live-auth-flow.spec.ts:9 › anonymous request to /tools/merge-pdf.html redirects to login (248ms)
+  ✓  2 e2e/live-auth-flow.spec.ts:24 › authenticated session reaches /tools/merge-pdf.html with crossOriginIsolated=true (1.0s)
+  ✓  3 e2e/live-auth-flow.spec.ts:66 › merge-pdf page title and structure are correct (1.0s)
+
+  3 passed (2.6s)
+```
+
+Verified:
+
+- Anonymous requests redirect to `/login?next=/tools/merge-pdf.html` ✓
+- Authenticated session with TOOLHUB_E2E_COOKIE reaches `/tools/merge-pdf.html` with 200 ✓
+- `window.crossOriginIsolated === true` (COOP/COEP headers intact) ✓
+- `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers present ✓
+- File input element present and visible ✓
+- Gate correctly prevents access without valid session ✓
+
+Platform epic exit conditions now all met. Ready to close US-TH-03.
