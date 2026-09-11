@@ -92,3 +92,69 @@ occurrences and the Dockerfile declares no such `ARG`. Docker silently ignores a
 
 **Bootstrapping note:** `./deploy.sh prod` cannot run from the commit that introduces it — its own
 preflight refuses an unpushed tree. The first real deploy is necessarily a post-commit action.
+
+> bento-pdf@2.8.8 smoke:live
+> bash deploy/smoke-live.sh assets/alternate-merge-B5GEb5c6.js
+
+exit 1: gate wrong — anonymous request did not redirect to /login?next=/tools/x.html (got 302)
+
+## 2026-09-11 — FIRST PRODUCTION DEPLOY (US-TH-03 AC-02 · US-TH-02 AC-04/AC-05/AC-06)
+
+`./deploy.sh prod` at toolhub `7b4a6d3`. **The deploy itself succeeded** — build → candidate →
+probe → promote → NPM reachability → COOP/COEP all passed. The `exit 1` logged immediately above
+is the smoke script's own bug, not a gate fault; diagnosed and fixed below. First install, so
+`toolhub:rollback` does not exist yet.
+
+`TOOLHUB_E2E_COOKIE` was **minted server-side**, not captured from a browser: `httponly` blocks
+JavaScript from _reading_ a cookie but nothing prevents the app from _issuing_ one, and PosterEngine
+is ours. `docker exec poster-engine python -c "create_session(db, 7)"` for `jonas.cords@gmail.com`
+(user id 7, on `PE_TOOLS_USERS`), via the same function `/login` calls — so the session is
+indistinguishable from a real login and cannot drift from what `get_session_user` validates.
+Written to a `0600` `.env`, gitignored at `.gitignore:15`. Expires in 7 days (`SESSION_TTL_DAYS`).
+See DECISIONS Q201 (supersedes Q200).
+
+```
+VPS disk before deploy                                      → 42% (< 85% gate)
+:9103 before deploy                                         → free; no toolhub images/containers (first install)
+docker build                                                → toolhub:candidate, 231.1s vite build, image d88fbcf3a58c
+probe toolhub-candidate  /tools/ · /tools/merge-pdf.html · /tools/assets/alternate-merge-B5GEb5c6.js  → 200 ×3
+promote                                                     → toolhub:current; compose up -d; network toolhub_default created
+probe toolhub (post-promotion)                              → 200 ×3
+docker exec npm curl http://127.0.0.1:9103/tools/           → 200   (P1: NPM reaches the container)
+header_check                                                → COOP/COEP intact through NPM   (AC-03 always-on)
+```
+
+Live gate, measured after promotion:
+
+```
+authenticated /tools/                                        → 200   (US-TH-02 AC-06 — first time proven)
+authenticated /tools/assets/alternate-merge-B5GEb5c6.js      → 200   (release-specific hashed asset)
+anonymous     /tools/                                        → 302
+anonymous     /tools/x.html?a=1&b=2                          → 302 → https://poster.getaccess.cloud/login?next=/tools/x.html
+                                                                     (query string correctly NOT leaked into next=)
+/meeting/                                                    → 401   (no regression from the new location)
+```
+
+### Smoke-script bug found by this deploy (stub fidelity)
+
+`deploy/smoke-live.sh` compared `Location` against the **relative** `/login?next=/tools/x.html`,
+but nginx's `return 302 /login?next=$uri` is sent as an **absolute** URL (scheme + `server_name` +
+target). The live gate was correct; the assertion was wrong.
+
+It went unnoticed because `deploy/smoke-stub.py:17` emitted the relative form too — the stub
+encoded an _assumption_ about nginx rather than a measured response, so the suite was validating
+the script against a copy of the same guess. `test-smoke-live.sh` reported **5 passed** for days,
+including in this session's premise block, while the live gate would have failed.
+
+Fixed both: the stub now sends the absolute form the real gate sends, and the script strips an
+optional `scheme://host` prefix before an otherwise-exact path comparison (the `?a=1&b=2` must
+still not survive into `next=`). Red/green proven, not assumed:
+
+```
+old comparison vs corrected stub   → FAIL ok (exit 1, want 0) · FAIL badcookie (exit 1, want 2)
+                                      Location 'http://127.0.0.1:PORT/login?next=/tools/x.html'
+with fix                            → smoke-live tests: 5 passed
+live smoke                          → "smoke ok: anonymous 302→…, authenticated 200, asset … 200", exit 0
+strip_origin unit cases             → absolute·relative·http·root-only·empty correct;
+                                      negative control (query leaked into next=) still compares UNEQUAL
+```
