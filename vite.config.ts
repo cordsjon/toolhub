@@ -104,6 +104,18 @@ function createLanguageMiddleware(isDev: boolean): Connect.NextHandleFunction {
     const basePath = getBasePath();
     const [fullPathname, queryString] = req.url.split('?');
 
+    // Rewrites below emit base-relative URLs (`/de/index.html`); preview's static
+    // handler resolves against `base` (`/tools/`), so unprefixed rewrites 404. Dev
+    // is already base-aware. Re-applied once here, not at 13 `req.url =` sites,
+    // because vite.config.ts is capped at 25 changed lines (A16).
+    const inner = next;
+    next = (err?: unknown) => {
+      if (!isDev && basePath && req.url?.startsWith('/')) {
+        if (!req.url.startsWith(`${basePath}/`)) req.url = basePath + req.url;
+      }
+      return inner(err as never);
+    };
+
     let pathname = fullPathname;
     if (basePath && basePath !== '/' && pathname.startsWith(basePath)) {
       pathname = pathname.slice(basePath.length) || '/';
