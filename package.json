@@ -24,6 +24,7 @@
     "test:e2e": "npm run build:e2e && playwright test",
     "test:e2e:only": "playwright test",
     "test:e2e:live": "TOOLHUB_LIVE=1 playwright test",
+    "smoke:live": "bash deploy/smoke-live.sh",
     "test:watch": "vitest watch",
     "build:docker": "vite build",
     "format": "prettier --write .",
