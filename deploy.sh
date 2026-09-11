@@ -67,6 +67,17 @@ preflight() {
 # PosterEngine's :9220 orphan), so the PID walk is the reliable path.
 port_owner() {
   ssh "$VPS_HOST" '
+    # Ask Docker FIRST. A published port is held by `docker-proxy`, a HOST process under
+    # system.slice/docker.service — NOT by the container — so its cgroup carries no 64-hex
+    # container id and a PID walk reports "non-docker pid". Measured 2026-09-11: the second
+    # deploy was refused with "held by non-docker pid 2478354" while our own toolhub
+    # container held the port. The PID walk only ever passed on a FIRST install, where the
+    # empty-owner case short-circuits it. The port match is anchored on ":<port>->" so that
+    # e.g. :103-> cannot match a 9103 mapping.
+    name=$(docker ps --format "{{.Names}}\t{{.Ports}}" | awk -F"\t" "\$2 ~ /:'"$PORT"'->/ {print \$1}" | head -1)
+    [ -n "$name" ] && { echo "$name"; exit 0; }
+    # Not published by any container — fall back to the PID walk for genuinely non-docker
+    # listeners (e.g. portmgr'"'"'s uvicorn, which is what held :9100 in Phase 0).
     pid=$(ss -tlnpH "sport = :'"$PORT"'" 2>/dev/null | grep -oE "pid=[0-9]+" | head -1 | cut -d= -f2); [ -z "$pid" ] && exit 0
     cid=$(grep -oE "[0-9a-f]{64}" /proc/$pid/cgroup 2>/dev/null | head -1); [ -z "$cid" ] && { echo "non-docker pid $pid"; exit 0; }
     docker ps --no-trunc --format "{{.ID}} {{.Names}}" | grep "^$cid" | awk "{print \$2}"'

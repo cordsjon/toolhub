@@ -185,3 +185,38 @@ therefore `http://172.17.0.1:9103/tools/merge-pdf.html`.
 - AC-04 (inventory + `about.md` registration) — untouched.
 - AC-05 (two Kuma monitors) — the private monitor's URL is now proven reachable, but neither
   monitor has been created; that is an operator UI action.
+
+## 2026-09-11 — preflight bug: `port_owner` misread our own container as a stranger
+
+The **second** `./deploy.sh prod` was refused by my own P2 check:
+
+```
+ERROR: :9103 held by 'non-docker pid 2478354' — refusing (P2)
+```
+
+`:9103` was held by `toolhub` — ours. Root cause: a published Docker port is held by
+`docker-proxy`, a **host** process under `system.slice/docker.service`, not by the container.
+
+```
+ss -tlnpH "sport = :9103"  → users:(("docker-proxy",pid=2478354))  on 172.17.0.1:9103
+                             users:(("docker-proxy",pid=2478348))  on 127.0.0.1:9103
+ps -p 2478354              → /usr/bin/docker-proxy -host-ip 172.17.0.1 -host-port 9103
+                                                   -container-ip 172.25.0.2 -container-port 8080
+cat /proc/2478354/cgroup   → 0::/system.slice/docker.service      (no 64-hex container id)
+```
+
+So the PID→cgroup→container-id walk finds no container id and reports `non-docker pid`.
+**This passed on the first install only because nothing was listening** — the empty-owner case
+short-circuits before the walk. Every subsequent deploy would have been refused. A check written
+to stop us evicting a stranger's service was instead blocking every redeploy of our own.
+
+Fixed by asking Docker first (`docker ps` port mappings, anchored on `:<port>->`), keeping the PID
+walk as the fallback for genuinely non-docker listeners — which is the case Phase 0 actually hit,
+where portmgr's uvicorn held `:9100`. Verified, including that the guard still refuses a stranger:
+
+```
+:9103 → toolhub            (ours → allowed)
+:9999 → dozzle             (a real other container → would REFUSE)
+:9877 → (empty, free)      (free → allowed)
+:103  → (empty)            (colon anchor: cannot partial-match 9103)
+```
