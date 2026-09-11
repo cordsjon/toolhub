@@ -193,10 +193,19 @@ case "$cmd" in
     ;;
 
   rehearse-failure)
-    # AC-03: prove the deploy DETECTS a broken build and that current keeps serving.
-    # BASE_URL=/broken/ also moves .vite/manifest.json to /usr/share/nginx/html/broken/,
-    # so derive_asset fails first — the rehearsal proves DETECTION only, not probe-URL
-    # coverage (spec: accepted, triage D5). Run once; it is a platform-epic exit condition.
+    # AC-03: prove the deploy DETECTS a broken release and that current keeps serving.
+    #
+    # FAULT INJECTION — why NOT the spec's `BASE_URL=/broken/`. Measured 2026-09-11: that
+    # value fails the BUILD, not the probe. `npm run build` ends in scripts/seo-audit.mjs,
+    # a dead-link checker that rejects 155 pages linking to a non-existent "/broken/", so
+    # `docker build` exits 1 and the probe is never reached. A fault must be injected
+    # DOWNSTREAM of every gate that precedes the one under test.
+    #
+    # `BASE_URL=` (empty) is upstream's default, so the app builds and link-checks cleanly,
+    # but the Dockerfile's `COPY … /usr/share/nginx/html${BASE_URL%/}` then lands dist at the
+    # web ROOT instead of /tools/. The image is healthy and serves — it just serves the wrong
+    # path — so /tools/, /tools/merge-pdf.html and the manifest all 404 and the PROBE is what
+    # rejects it. That is the mechanism AC-03 exists to exercise.
     #
     # MUST assert WHICH failure fired, not merely a non-zero exit. Measured 2026-09-11:
     # the first rehearsal "PASSED" because preflight refused a dirty tree (`prod` had just
@@ -204,14 +213,14 @@ case "$cmd" in
     # probe was never exercised. A rehearsal that accepts any failure mode proves nothing
     # about the one it exists to test. `prod` no longer dirties the tree (see TOOLHUB_LOG),
     # and the output is now required to show the probe stage failing.
-    echo "Rehearsing a failed deploy (BASE_URL=/broken/) ..."
+    echo "Rehearsing a failed deploy (BASE_URL= — dist lands at web root, /tools/ 404s) ..."
     # The inner prod runs with preflight skipped ON PURPOSE: a successful deploy appends its
     # OK line to the tracked deploy/log.md, so by the time anyone rehearses, the tree is
     # legitimately dirty and the preflight would short-circuit the rehearsal before the build.
     # Skipping it here is safe — the rehearsal deliberately ships a BROKEN build that must
     # never be promoted, so the "don't ship uncommitted code" rationale does not apply; and
     # the assertion below requires the probe to be what rejects it.
-    rehearsal_out=$( ( export TOOLHUB_EXTRA_BUILD_ARGS="--build-arg BASE_URL=/broken/" TOOLHUB_DEPLOY_SKIP_PREFLIGHT=1; "$0" prod ) 2>&1 ) && {
+    rehearsal_out=$( ( export TOOLHUB_EXTRA_BUILD_ARGS="--build-arg BASE_URL=" TOOLHUB_DEPLOY_SKIP_PREFLIGHT=1; "$0" prod ) 2>&1 ) && {
       echo "$rehearsal_out" | tail -20
       echo "ERROR: rehearsal FAILED — a broken build was promoted (expected exit 1)."
       exit 1

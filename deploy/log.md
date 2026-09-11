@@ -228,3 +228,55 @@ smoke ok: anonymous 302→/login?next=/tools/x.html, authenticated 200, asset as
 2026-09-11T18:48:41Z prod 8c63481f58290b784ca74aa235bf69983a48023d asset=assets/alternate-merge-B5GEb5c6.js OK
 2026-09-11T18:49:17Z rollback OK
 rehearse-failure PASS 2026-09-11T18:49:18Z
+
+> bento-pdf@2.8.8 smoke:live
+> bash deploy/smoke-live.sh assets/alternate-merge-B5GEb5c6.js
+
+smoke ok: anonymous 302→/login?next=/tools/x.html, authenticated 200, asset assets/alternate-merge-B5GEb5c6.js 200
+2026-09-11T18:54:58Z prod a23e11555fac02aac6d04a1866ba1696a70b206a asset=assets/alternate-merge-B5GEb5c6.js OK
+2026-09-11T19:03:42Z rollback OK
+rehearse-failure PASS 2026-09-11T19:03:42Z
+
+## 2026-09-11 — AC-03 rehearsal: two false greens before a real one
+
+`rehearse-failure` printed PASS twice before it proved anything. Both PASS lines above are in the
+append-only record; **only the second (`19:03:42Z`) is valid**. The first (`18:49:18Z`) is void —
+kept because this log never rewrites history, annotated here so nobody cites it as evidence.
+
+**False green #1 — wrong failure mode.** `prod` appends its OK line to the tracked
+`deploy/log.md`, so after any successful deploy the tree is dirty. The rehearsal's inner
+`"$0" prod` was therefore refused by _preflight_ ("working tree has uncommitted changes") before
+`docker build` ever ran. The rehearsal asserted only `exit 1`, so a refusal from an entirely
+different stage satisfied it. A test that accepts any failure mode cannot prove the specific one
+it was written for.
+
+Fixed: the rehearsal now requires the output to contain `PROBE FAIL` / `candidate failed the
+probe`, and runs the inner `prod` with `TOOLHUB_DEPLOY_SKIP_PREFLIGHT=1` (safe here — the
+rehearsal deliberately ships a build that must never be promoted; `preflight_ports` is a separate
+call and still enforces P2/P5).
+
+**False green #2 — fault injected too far upstream.** With the assertion in place, the spec's
+`BASE_URL=/broken/` was exposed as failing the **build**, not the probe:
+
+```
+scripts/seo-audit.mjs → [dead-link] 155 pages link to "/broken/" but no such page exists in dist
+docker build          → exit 1 at Dockerfile:75 (npm run build:with-docs)
+rehearsal             → ERROR: FALSE GREEN — prod exited non-zero, but not at the probe
+```
+
+A fault must be injected DOWNSTREAM of every gate that precedes the one under test. Switched to
+`BASE_URL=` (upstream's default): the app builds and link-checks cleanly, but the Dockerfile's
+`COPY … /usr/share/nginx/html${BASE_URL%/}` lands `dist` at the web ROOT, so the image is healthy
+and serving — just at the wrong path — and `/tools/` 404s. The probe is what rejects it.
+
+**Valid rehearsal (`19:03:42Z`):**
+
+```
+broken candidate rejected BY THE PROBE       (assertion matched PROBE FAIL)
+current still serving 200                    (the broken candidate was never promoted)
+rollback → 200 after rollback                (tag swap current↔rollback verified)
+live after: auth /tools/ 200 · anon 302 · /meeting/ 401
+```
+
+Note the rehearsal legitimately leaves `toolhub:current` pointing at the PREVIOUS image — that is
+what a rollback does. Redeploy afterwards to return prod to the newest commit.
