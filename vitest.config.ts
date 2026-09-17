@@ -6,7 +6,17 @@ export default defineConfig({
     // Enable global test APIs (describe, it, expect, etc.)
     globals: true,
 
-    // Simulate browser environment
+    // Simulate browser environment.
+    //
+    // Deliberately NO `environmentOptions.jsdom.url` here. Setting a real
+    // origin looks like the natural fix for jsdom's opaque-origin Storage
+    // error, but it is not origin-neutral: production code branches on
+    // location.protocol, and an `https://` origin makes
+    // digital-sign-pdf.ts:363's mixed-content guard (pageIsHttps && tsaIsHttp)
+    // fire for the first time, failing 6 TSA tests written against the default
+    // about:blank origin. localStorage is provided by the shim in
+    // src/tests/setup.ts instead, which fixes the real cause without touching
+    // the page origin.
     environment: 'jsdom',
 
     // Setup files to run before tests

@@ -1,4 +1,5 @@
 import { afterEach, vi } from 'vitest';
+import { installStorageShim } from './x-localstorage-shim';
 
 class TestDOMMatrix {
   a = 1;
@@ -15,11 +16,8 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
 
 const hasDom = typeof window !== 'undefined';
 
-afterEach(() => {
-  if (!hasDom) return;
-  document.body.innerHTML = '';
-  document.head.innerHTML = '';
-});
+// Storage shim for newer Node versions — see x-localstorage-shim.ts for why.
+installStorageShim();
 
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
