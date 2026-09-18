@@ -9,11 +9,11 @@ set -euo pipefail
 base="${TOOLHUB_BASE:-$(cat UPSTREAM_BASE)}"
 fail=0; err() { echo "boundary: $*" >&2; fail=1; }
 
-# Fork-owned namespace, plus: .nvmrc + TESTING.md (Task 1 fork-owned), and the three
-# upstream files the operator authorised by recorded decision —
+# Fork-owned namespace, plus: .nvmrc + TESTING.md (Task 1 fork-owned), BACKLOG.md (A16),
+# and the three upstream files the operator authorised by recorded decision —
 # scripts/generate-blog.mjs (A9), docs/.vitepress/config.mts (A10), Dockerfile (A15).
-allowed_re='^(src/pages/x-[a-z0-9-]+\.html|src/pages/_x-template\.html|src/js/logic/x-.*|src/js/config/tools-ext\.ts|src/tests/x-.*|src/tests/fixtures/x-.*|NOTICE\.md|UPSTREAM_BASE|DECISIONS\.md|TESTING\.md|\.nvmrc|docker-compose\.yml|deploy\.sh|deploy/.*|e2e/.*|playwright\.config\.ts|docs/specs/.*|scripts/check-upstream-boundary\.sh|scripts/check-ext-i18n\.mjs|scripts/generate-blog\.mjs|docs/\.vitepress/config\.mts|Dockerfile)$'
-capped='src/js/config/tools.ts src/js/main.ts vite.config.ts nginx.conf'
+allowed_re='^(src/pages/x-[a-z0-9-]+\.html|src/pages/_x-template\.html|src/js/logic/x-.*|src/js/config/tools-ext\.ts|src/tests/x-.*|src/tests/fixtures/x-.*|NOTICE\.md|UPSTREAM_BASE|DECISIONS\.md|BACKLOG\.md|TESTING\.md|\.nvmrc|docker-compose\.yml|deploy\.sh|deploy/.*|e2e/.*|playwright\.config\.ts|docs/specs/.*|scripts/check-upstream-boundary\.sh|scripts/check-ext-i18n\.mjs|scripts/generate-blog\.mjs|docs/\.vitepress/config\.mts|Dockerfile)$'
+capped='src/js/config/tools.ts src/js/main.ts vite.config.ts nginx.conf eslint.config.mjs vitest.config.ts src/tests/setup.ts'
 
 for f in $(git diff --name-only "$base"); do
   [[ "$f" =~ $allowed_re ]] && continue
