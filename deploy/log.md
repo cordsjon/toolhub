@@ -360,3 +360,30 @@ Toolhub registered in portmgr (port 9103) via CLI:
 - Infra-inventory updated: `- **toolhub** — \`localhost:9103\``
 
 AC-04 fully complete. AC-05 (Kuma monitors) ready for operator.
+
+## 2026-10-26 — US-TH-03 AC-05: Uptime Kuma monitors verified
+
+The two monitors already existed. They were created right after the 2026-09-11 "awaiting operator" entry, since monitor 10's first UP event is 2026-09-11 21:48:09. Nobody recorded them here. Kuma 1.23.17 at `https://status.getaccess.cloud/`; settings read from the edit forms on 2026-10-26:
+
+| ID  | Name                | URL                                           | Accepted | Max redirects | Interval | Notification                        |
+| --- | ------------------- | --------------------------------------------- | -------- | ------------- | -------- | ----------------------------------- |
+| 9   | toolhub public gate | `https://poster.getaccess.cloud/tools/`       | 302      | 0             | 60 s     | ntfy.sh jcords-agent (srv1 ingress) |
+| 10  | toolhub backend     | `http://172.17.0.1:9103/tools/merge-pdf.html` | 200      | 10            | 60 s     | ntfy.sh jcords-agent (srv1 ingress) |
+
+`maxRedirects 0` on monitor 9 is load-bearing: with redirects followed, Kuma would land on the 200 login page, and an accepted list containing 200 would go green for the wrong reason. Monitor 9's latest event reads `302 - Moved Temporarily`; monitor 10's reads `200 - OK`.
+
+Metrics check, using API key `toolhub-ac05` (stored in `~/.hermes/secrets/kuma.env`, not in this repo):
+
+```
+curl -s -u ":$KUMA_API_KEY" https://status.getaccess.cloud/metrics | grep '^monitor_status{' | grep -i toolhub
+monitor_status{monitor_name="toolhub public gate",monitor_type="http",monitor_url="https://poster.getaccess.cloud/tools/",...} 1
+monitor_status{monitor_name="toolhub backend",monitor_type="http",monitor_url="http://172.17.0.1:9103/tools/merge-pdf.html",...} 1
+```
+
+Positive control: the same scrape holds 22 `monitor_status` rows, 16 at `1` and 6 at `0` (getaccess.cloud root, n8n, Portainer, Open WebUI, Dify, WordPress TEST), so a `1` is a measured state, not a constant. `/metrics` without the key returns 401.
+
+Not to be confused with monitor 20, "Toolhub (tools)". It watches `https://tools.getaccess.cloud/`, which is the separate it-tools app, not this repo.
+
+Access note: the Kuma admin password was unknown (the `admin`/`getaccess` pair in memory was rejected), so it was reset on 2026-10-26 with `docker exec -i uptime-kuma npm run reset-password`, with operator approval. The new password is in `~/.hermes/secrets/kuma.env`.
+
+Verified: AC-05 met. All six US-TH-03 ACs are now met.
